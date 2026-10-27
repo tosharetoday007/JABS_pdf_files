@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ABS Manuscript Formatter</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--tx:#1b1f24;--mu:#5b6570;--bd:#c9d1d9;--ac:#2f6fd0}
+@media(prefers-color-scheme:dark){:root{--bg:#161b22;--tx:#e6edf3;--mu:#9aa5b1;--bd:#3a424d;--ac:#6ea3f5}}
+body{font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--tx);max-width:760px;margin:24px auto;padding:0 16px}
+h1{font-size:20px}h2{font-size:15px;margin:22px 0 8px;color:var(--ac)}
+label{display:block;font-size:12px;color:var(--mu)}
+input,select{width:100%;box-sizing:border-box;padding:7px;border:1px solid var(--bd);border-radius:6px;background:transparent;color:inherit}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+button{padding:9px 14px;border:0;border-radius:6px;background:var(--ac);color:#fff;font-size:14px;cursor:pointer;margin:8px 8px 0 0}
+#msg{color:var(--mu);font-size:13px;margin-top:10px}
+</style></head><body>
+<h1>Journal of Allbiosolution: Manuscript Formatter</h1>
+<p style="color:var(--mu)">Runs entirely in your browser. Nothing is uploaded anywhere.</p>
+
+<h2>1. Load submissions</h2>
+<label>Download your Google Sheet as .xlsx (File → Download → Microsoft Excel), then choose it here</label>
+<input type="file" id="xl" accept=".xlsx">
+<label style="margin-top:10px">Submission</label>
+<select id="sel"><option>(load a file first)</option></select>
+
+<h2>2. Editor fields</h2>
+<div class="g">
+<div><label>Article ID</label><input id="aid" placeholder="A0801034"></div>
+<div><label>DOI</label><input id="doi" placeholder="10.xxxxx/..."></div>
+<div><label>Volume</label><input id="vol" value="8"></div>
+<div><label>Issue</label><input id="iss" value="1"></div>
+<div><label>Year</label><input id="yr" value="2026"></div>
+<div><label>Assigned to editor</label><input type="date" id="d_as"></div>
+<div><label>Received</label><input type="date" id="d_re"></div>
+<div><label>Revised</label><input type="date" id="d_rv"></div>
+<div><label>Accepted</label><input type="date" id="d_ac"></div>
+<div><label>Published</label><input type="date" id="d_pu"></div>
+</div>
+
+<h2>3. Figures (optional, added after Results in the editor file)</h2>
+<input type="file" id="figs" accept="image/png,image/jpeg" multiple>
+
+<h2>4. Create files</h2>
+<button id="b1">Editor version (.docx)</button>
+<button id="b2">Blinded version for reviewers (.docx)</button>
+<div id="msg"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let rows=[];
+const say=t=>$('msg').textContent=t;
+const fmt=v=>{if(!v)return'';const[y,m,d]=v.split('-');return `${d}/${m}/${y}`};
+const S=(r,k)=>String(r[k]==null?'':r[k]).trim();
+
+$('xl').onchange=async e=>{
+  try{
+    const wb=XLSX.read(await e.target.files[0].arrayBuffer(),{cellDates:true});
+    const ws=wb.Sheets['ABS Submissions'];
+    if(!ws){say('Sheet "ABS Submissions" not found.');return}
+    rows=XLSX.utils.sheet_to_json(ws).filter(r=>r['Submission ID']);
+    $('sel').innerHTML=rows.map((r,i)=>`<option value="${i}">${S(r,'Submission ID')} - ${S(r,'Manuscript Title').slice(0,60)}</option>`).join('');
+    pick();say(rows.length+' submission(s) loaded.');
+  }catch(x){say('Could not read file: '+x.message)}
+};
+function pick(){
+  const r=rows[$('sel').value];if(!r)return;
+  const t=r['Timestamp'];
+  $('d_re').value=t instanceof Date?t.toISOString().slice(0,10):'';
+}
+$('sel').onchange=pick;
+
+function authors(r){
+  const list=[{n:S(r,'Corr. Author Name'),a:[S(r,'Corr. Affiliation'),S(r,'Corr. Author Address')].filter(Boolean).join(', '),c:true}];
+  S(r,'Co-Authors (Name & Address)').split(/\n|;/).map(s=>s.trim()).filter(s=>s&&!/^(nil|none|na|-)$/i.test(s))
+    .forEach(s=>{const i=s.indexOf(',');list.push({n:(i<0?s:s.slice(0,i)).replace(/^\d+[.)]\s*/,''),a:i<0?'':s.slice(i+1).trim()})});
+  const affs=[];
+  list.forEach(x=>{if(!x.a)return;let k=affs.indexOf(x.a);if(k<0){affs.push(x.a);k=affs.length-1}x.k=k+1});
+  return{list,affs};
+}
+
+const D=docx;
+const P=(t,o={})=>new D.Paragraph({alignment:o.al||D.AlignmentType.JUSTIFIED,spacing:{after:o.af??80,before:o.bf||0},children:Array.isArray(t)?t:[new D.TextRun({text:t,size:o.sz||20,bold:o.b,italics:o.i,font:'Calibri'})]});
+const H=t=>P(t,{b:true,sz:22,bf:140,af:60,al:D.AlignmentType.LEFT});
+const paras=(t,o)=>t.split(/\n+/).filter(x=>x.trim()).map(x=>P(x.trim(),o));
+
+async function imgs(){
+  const out=[];let n=0;
+  for(const f of $('figs').files){
+    const buf=await f.arrayBuffer();
+    const dim=await new Promise(res=>{const im=new Image();im.onload=()=>res([im.width,im.height]);im.src=URL.createObjectURL(f)});
+    const w=270,h=Math.round(w*dim[1]/dim[0]);n++;
+    out.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.ImageRun({data:buf,type:f.type.includes('png')?'png':'jpg',transformation:{width:w,height:h}})]}));
+    out.push(P([new D.TextRun({text:`Figure ${n}: `,bold:true,italics:true,size:18}),new D.TextRun({text:'Caption (edit in Word).',italics:true,size:18})],{al:D.AlignmentType.LEFT}));
+  }
+  return out;
+}
+
+async function build(blind){
+  const r=rows[$('sel').value];if(!r){say('Load a file and select a submission.');return}
+  const sid=S(r,'Submission ID'),aid=$('aid').value.trim(),id=aid||sid;
+  const dates=[['Assigned','d_as'],['Received','d_re'],['Revised','d_rv'],['Accepted','d_ac'],['Published','d_pu']]
+    .map(([l,k])=>$(k).value?`${l}: ${fmt($(k).value)}`:'').filter(Boolean).join(', ');
+  const hdrTxt=blind?`Manuscript ${sid}: confidential, for peer review (authors anonymised)`
+    :`Journal of Allbiosolution (${$('yr').value}) Volume ${$('vol').value}, Issue ${$('iss').value}, Article ID: ${aid||'-'}`;
+  const header=()=>new D.Header({children:[new D.Paragraph({alignment:D.AlignmentType.CENTER,
+    shading:{type:D.ShadingType.CLEAR,fill:blind?'E7E6E6':'4F81D9',color:'auto'},spacing:{before:60,after:120},
+    children:[new D.TextRun({text:hdrTxt,bold:true,size:blind?18:19,color:blind?'333333':'FFFFFF',font:'Calibri'})]})]});
+  const footer=()=>new D.Footer({children:[new D.Paragraph({children:[
+    new D.TextRun({text:(blind?'':dates+'    ')+'Page ',size:16}),new D.TextRun({children:[D.PageNumber.CURRENT],size:16})]})]});
+
+  const front=[];
+  if(!blind)front.push(P(`Journal of Allbiosolution${$('doi').value?'   |   DOI: '+$('doi').value:''}`,{b:true,sz:26,al:D.AlignmentType.CENTER,af:60}));
+  front.push(P(S(r,'Article Type'),{b:true,sz:18,al:D.AlignmentType.LEFT,af:40}));
+  front.push(P(S(r,'Manuscript Title'),{b:true,sz:34,al:D.AlignmentType.LEFT,af:80}));
+  if(!blind){
+    const{list,affs}=authors(r);
+    front.push(P(list.flatMap((a,i)=>[new D.TextRun({text:(i?', ':'')+a.n+(a.c?'*':''),bold:true,size:20}),...(a.k?[new D.TextRun({text:String(a.k),superScript:true,bold:true,size:20})]:[])]),{al:D.AlignmentType.LEFT}));
+    affs.forEach((a,i)=>front.push(P([new D.TextRun({text:String(i+1),superScript:true,size:18}),new D.TextRun({text:a,size:18})],{al:D.AlignmentType.LEFT,af:20})));
+    front.push(P(`*Corresponding author: ${S(r,'Corr. Author Name')}, ${S(r,'Corr. Author Address')}. E-mail: ${S(r,'Corr. Author Email')}${S(r,'Corr. Author ORCID')?'. ORCID: '+S(r,'Corr. Author ORCID'):''}`,{sz:18,al:D.AlignmentType.LEFT}));
+  }
+  if(S(r,'Running Title'))front.push(P('Running title: '+S(r,'Running Title'),{sz:18,al:D.AlignmentType.LEFT}));
+
+  const body=[H('Abstract'),...paras(S(r,'Abstract')),
+    P([new D.TextRun({text:'Keywords: ',bold:true,size:20}),new D.TextRun({text:S(r,'Keywords'),size:20})])];
+  let n=0;const figs=await imgs();
+  [['Introduction'],['Materials & Methods'],['Results'],['Discussion'],['Conclusion']].forEach(([k])=>{
+    if(!S(r,k))return;n++;body.push(H(`${n}. ${k}`),...paras(S(r,k)));
+    if(k==='Results'&&!blind)body.push(...figs);
+  });
+  if(!blind){
+    [['Acknowledgments','Acknowledgement'],['Funding Source','Funding'],['Ethics Approval No.','Ethics approval'],['Conflict of Interest','Conflicts of interest'],['Data Availability Statement','Data Availability Statement']]
+      .forEach(([k,l])=>{if(S(r,k))body.push(P([new D.TextRun({text:l+': ',bold:true,size:20}),new D.TextRun({text:S(r,k),size:20})]))});
+  }else{
+    ['Conflict of Interest','Data Availability Statement'].forEach(k=>{if(S(r,k))body.push(P([new D.TextRun({text:k.replace(' Statement','')+': ',bold:true,size:20}),new D.TextRun({text:S(r,k),size:20})]))});
+  }
+  if(S(r,'References'))body.push(H('References'),...paras(S(r,'References'),{sz:16,al:D.AlignmentType.LEFT,af:30}));
+
+  const margin={top:1300,bottom:1100,left:1000,right:1000};
+  const doc=new D.Document({sections:[
+    {properties:{page:{margin}},headers:{default:header()},footers:{default:footer()},children:front},
+    {properties:{type:D.SectionType.CONTINUOUS,column:{count:2,space:400},page:{margin}},headers:{default:header()},footers:{default:footer()},children:body}
+  ]});
+  const blob=await D.Packer.toBlob(doc);
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${id}_${blind?'Blinded':'Editor'}.docx`;a.click();
+  say(`Created ${a.download}`);
+}
+$('b1').onclick=()=>build(false).catch(e=>say('Error: '+e.message));
+$('b2').onclick=()=>build(true).catch(e=>say('Error: '+e.message));
+</script></body></html>
