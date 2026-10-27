@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JABS Manuscript Formatter</title>
 <style>
-:root{color-scheme:light dark;--bg:#fff;--tx:#1b1f24;--mu:#5b6570;--bd:#c9d1d9;--ac:#2f6fd0}
+:root{color-scheme:light dark;--bg:#fff;--tx:#1b1f24;--mu:#5b6570;--bd:#c9d1d9;--ac:#0b3d91}
 @media(prefers-color-scheme:dark){:root{--bg:#161b22;--tx:#e6edf3;--mu:#9aa5b1;--bd:#3a424d;--ac:#6ea3f5}}
 body{font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--tx);max-width:820px;margin:24px auto;padding:0 16px}
 h1{font-size:20px}h2{font-size:15px;margin:22px 0 8px;color:var(--ac)}
@@ -21,6 +21,7 @@ button.s{background:transparent;color:var(--ac);border:1px solid var(--ac)}
 <h2>1. Load submissions</h2>
 <label>Google Sheet → File → Download → Microsoft Excel (.xlsx)</label>
 <input type="file" id="xl" accept=".xlsx">
+<label style="margin-top:6px">Affiliations come from the sheet. Authors with identical affiliation text share one number. Several affiliations for one author: separate them with | (a vertical bar). Co-authors: one per line, as Name - Affiliation.</label>
 <label style="margin-top:10px">Submission</label>
 <select id="sel"><option>(load a file first)</option></select>
 
@@ -37,7 +38,7 @@ button.s{background:transparent;color:var(--ac);border:1px solid var(--ac)}
 <div><label>Revised</label><input type="date" id="d_rv"></div>
 <div><label>Accepted</label><input type="date" id="d_ac"></div>
 <div><label>Published</label><input type="date" id="d_pu"></div>
-<div style="grid-column:1/-1"><label>"Check for updates" link (blank = https://doi.org/DOI)</label><input id="url" placeholder="https://www.allbiosolution.com/..."></div>
+<div style="grid-column:1/-1"><label>"Check for updates" link: the web page of this article on your journal site</label><input id="url" placeholder="https://www.allbiosolution.com/..."></div>
 </div>
 
 <h2>3. Figures and tables</h2>
@@ -74,29 +75,48 @@ $('sel').onchange=pick;
 
 function addItem(k){
   const d=document.createElement('div');d.className='it';d.dataset.k=k;
-  d.innerHTML=(k=='fig'?'<b>Figure</b><input type="file" class="f" accept="image/png,image/jpeg">':'<b>Table</b><textarea class="td" rows="4" placeholder="Paste the table from Excel or Word here. First row = column headings."></textarea>')+
+  d.innerHTML=(k=='fig'?'<b>Figure</b><input type="file" class="f" accept="image/png,image/jpeg">':'<b>Table</b><textarea class="td" rows="4" placeholder="Paste a table copied from Word, Excel or a web page. First row = column headings."></textarea>')+
    '<input class="cap" placeholder="Caption (without the label)"><div class="g"><select class="af">'+opts+'</select><button class="s x" style="margin:0">Remove</button></div>';
   d.querySelector('.x').onclick=()=>d.remove();$('items').appendChild(d);
 }
 $('af').onclick=()=>addItem('fig');$('at').onclick=()=>addItem('tab');
 
+const cl=t=>String(t||'').replace(/\s+/g,' ').replace(/[\s.,;]+$/,'').trim();
 function authors(r){
-  const list=[{n:S(r,'Corr. Author Name'),a:[S(r,'Corr. Affiliation'),S(r,'Corr. Author Address')].filter(Boolean).join(', '),c:true}];
-  S(r,'Co-Authors (Name & Address)').split(/\n|;/).map(s=>s.trim()).filter(s=>s&&!/^(nil|none|na|-)$/i.test(s))
-    .forEach(s=>{const i=s.indexOf(',');list.push({n:(i<0?s:s.slice(0,i)).replace(/^\d+[.)]\s*/,''),a:i<0?'':s.slice(i+1).trim()})});
+  const key=x=>x.toLowerCase().replace(/\s+/g,' ').replace(/[\s.,;]+$/,'');
+  const split=x=>String(x||'').split('|').map(cl).filter(Boolean);
+  const ca=split(S(r,'Corr. Affiliation')),
+        list=[{n:cl(S(r,'Corr. Author Name')),a:ca.length?ca:split(S(r,'Corr. Author Address')),c:true}];
+  S(r,'Co-Authors (Name & Address)').split(/\n|;/).map(x=>x.trim()).filter(x=>x&&!/^(nil|none|na|-)$/i.test(x)).forEach(x=>{
+    x=x.replace(/^\d+[.)]\s*/,'');const m=x.search(/\s[-–—]\s|,/);
+    list.push({n:cl(m<0?x:x.slice(0,m)),a:m<0?[]:split(x.slice(m).replace(/^(\s[-–—]\s|,)/,''))})});
   const affs=[];
-  list.forEach(x=>{if(!x.a)return;let k=affs.indexOf(x.a);if(k<0){affs.push(x.a);k=affs.length-1}x.k=k+1});
+  list.forEach(x=>{x.k=x.a.map(t=>{let k=affs.findIndex(e=>key(e)==key(t));if(k<0){affs.push(t);k=affs.length-1}return k+1})});
   return{list,affs};
 }
 
+const BLUE='0B3D91',ORG='C55A11';
 const L=D.AlignmentType.LEFT,J=D.AlignmentType.JUSTIFIED,C=D.AlignmentType.CENTER;
 const TR=o=>new D.TextRun({size:20,font:'Calibri',...o});
-const P=(t,o={})=>new D.Paragraph({alignment:o.al||J,keepNext:o.kn,spacing:{after:o.af??80,before:o.bf||0},children:Array.isArray(t)?t:[TR({text:t,size:o.sz||20,bold:o.b,italics:o.i})]});
-const H=t=>P(t,{b:true,sz:22,bf:140,af:60,al:L,kn:true});
+const P=(t,o={})=>new D.Paragraph({alignment:o.al||J,keepNext:o.kn,spacing:{after:o.af??80,before:o.bf||0},children:Array.isArray(t)?t:[TR({text:t,size:o.sz||20,bold:o.b,italics:o.i,color:o.col})]});
+const H=t=>P(t,{b:true,sz:22,bf:140,af:60,al:L,kn:true,col:BLUE});
 const paras=(t,o)=>t.split(/\n+/).filter(x=>x.trim()).map(x=>P(x.trim(),o));
 const lab=(l,t,sz=16)=>P([TR({text:l+': ',bold:true,size:sz}),TR({text:t,size:sz})],{al:L,af:40});
 const nb={style:D.BorderStyle.NONE,size:0,color:'FFFFFF'},NB={top:nb,bottom:nb,left:nb,right:nb};
 
+function parseTable(raw){
+  const L=raw.split(/\r?\n/).filter(l=>l.trim());
+  const sp=L.some(l=>l.includes('\t'))?'\t':L.some(l=>/\S\s{2,}\S/.test(l))?/\s{2,}/:',';
+  return L.map(l=>l.split(sp));
+}
+document.addEventListener('paste',e=>{
+  const t=e.target;if(!t.classList||!t.classList.contains('td'))return;
+  const h=e.clipboardData.getData('text/html');if(!/<table/i.test(h))return;
+  const d=new DOMParser().parseFromString(h,'text/html').querySelector('table');
+  e.preventDefault();
+  t.value=[...d.rows].map(r=>[...r.cells].map(c=>c.textContent.replace(/\s+/g,' ').trim()).join('\t')).join('\n');
+  say(`Table pasted: ${d.rows.length} rows.`);
+});
 async function getItems(){
   const o=[];let nf=0,nt=0;
   for(const el of document.querySelectorAll('.it')){
@@ -105,16 +125,15 @@ async function getItems(){
       const f=el.querySelector('.f').files[0];if(!f)continue;nf++;
       const dim=await new Promise(res=>{const im=new Image();im.onload=()=>res([im.width,im.height]);im.src=URL.createObjectURL(f)});
       const w=full?620:300,h=Math.round(w*dim[1]/dim[0]);
-      o.push({after,full,nodes:[new D.Paragraph({alignment:C,spacing:{before:80,after:120},children:[new D.ImageRun({data:await f.arrayBuffer(),type:f.type.includes('png')?'png':'jpg',transformation:{width:w,height:h}}),TR({text:`Figure ${nf}. `,bold:true,size:18,break:1}),TR({text:cap,size:18})]})]});
+      o.push({after,full,nodes:[new D.Paragraph({alignment:C,keepLines:true,spacing:{before:80,after:120},children:[new D.ImageRun({data:await f.arrayBuffer(),type:f.type.includes('png')?'png':'jpg',transformation:{width:w,height:h}}),TR({text:`Figure ${nf}. `,bold:true,size:18,break:1}),TR({text:cap,size:18})]})]});
     }else{
       const raw=el.querySelector('.td').value.trim();if(!raw)continue;nt++;
-      const g=raw.split(/\r?\n/).filter(Boolean).map(l=>l.includes('\t')?l.split('\t'):l.split(','));
-      const nc=Math.max(...g.map(x=>x.length)),cw=Math.floor((full?9906:4700)/nc);
-      const tb=new D.Table({columnWidths:Array(nc).fill(cw),width:{size:cw*nc,type:D.WidthType.DXA},
-        rows:g.map((row,ri)=>new D.TableRow({cantSplit:true,children:Array.from({length:nc},(_,i)=>new D.TableCell({width:{size:cw,type:D.WidthType.DXA},
-          shading:ri?undefined:{type:D.ShadingType.CLEAR,fill:'E8EEF8',color:'auto'},
-          children:[new D.Paragraph({children:[TR({text:(row[i]||'').trim(),size:16,bold:!ri})]})]}))}))});
-      o.push({after,full,nodes:[P([TR({text:`Table ${nt}. `,bold:true,size:18}),TR({text:cap,size:18})],{kn:true,af:40,bf:80}),tb,P('',{af:100})]});
+      const g=parseTable(raw),nc=Math.max(...g.map(x=>x.length)),cw=Math.floor((full?9906:4700)/nc),W=D.WidthType.DXA;
+      const capRow=new D.TableRow({cantSplit:true,children:[new D.TableCell({columnSpan:nc,width:{size:cw*nc,type:W},borders:NB,children:[P([TR({text:`Table ${nt}. `,bold:true,size:18}),TR({text:cap,size:18})],{al:L,af:60})]})]});
+      const tb=new D.Table({columnWidths:Array(nc).fill(cw),width:{size:cw*nc,type:W},rows:[capRow,...g.map((row,ri)=>new D.TableRow({cantSplit:true,children:Array.from({length:nc},(_,i)=>new D.TableCell({width:{size:cw,type:W},
+        shading:ri?undefined:{type:D.ShadingType.CLEAR,fill:'DCE6F7',color:'auto'},
+        children:[new D.Paragraph({children:[TR({text:(row[i]||'').trim(),size:16,bold:!ri,color:ri?undefined:BLUE})]})]}))}))]});
+      o.push({after,full,nodes:[tb,P('',{af:100})]});
     }
   }
   return o;
@@ -124,14 +143,14 @@ async function build(blind){
   const r=rows[$('sel').value];if(!r){say('Load a file and select a submission.');return}
   const sid=S(r,'Submission ID'),aid=$('aid').value.trim(),id=aid||sid,doi=$('doi').value.trim(),yr=$('yr').value,vol=$('vol').value,iss=$('iss').value;
   const doiUrl=doi?'https://doi.org/'+doi:'',link=$('url').value.trim()||doiUrl;
-  const band=(t,sz,col,fill)=>new D.Paragraph({alignment:C,shading:{type:D.ShadingType.CLEAR,fill,color:'auto'},spacing:{before:40,after:40},children:[TR({text:t,bold:true,size:sz,color:col})]});
+  const band=(t,sz,col,fill,acc)=>new D.Paragraph({alignment:C,border:acc?{bottom:{style:D.BorderStyle.SINGLE,size:18,color:'F2A900',space:1}}:undefined,shading:{type:D.ShadingType.CLEAR,fill,color:'auto'},spacing:{before:40,after:40},children:[TR({text:t,bold:true,size:sz,color:col})]});
   const idLine=`(${yr}) Volume ${vol}, Issue ${iss}, Article ID: ${aid||'-'}`;
-  const hFirst=()=>new D.Header({children:[band('Journal of Allbiosolution',44,'FFFFFF','4F81D9'),band(idLine,20,'FFFFFF','4F81D9')]});
-  const hRun=()=>new D.Header({children:[band(blind?`MANUSCRIPT ${sid}: CONFIDENTIAL, FOR PEER REVIEW (AUTHORS ANONYMISED)`:'JOURNAL OF ALLBIOSOLUTION '+idLine.toUpperCase(),18,blind?'333333':'FFFFFF',blind?'E7E6E6':'4F81D9')]});
+  const hFirst=()=>new D.Header({children:[band('Journal of Allbiosolution',44,'FFFFFF',BLUE),band(idLine,20,'FFFFFF',BLUE,1)]});
+  const hRun=()=>new D.Header({children:[band(blind?`MANUSCRIPT ${sid}: CONFIDENTIAL, FOR PEER REVIEW (AUTHORS ANONYMISED)`:'JOURNAL OF ALLBIOSOLUTION '+idLine.toUpperCase(),18,blind?'333333':'FFFFFF',blind?'E7E6E6':BLUE,!blind)]});
   const ft=()=>new D.Footer({children:[new D.Paragraph({children:[TR({size:16,text:'Page '}),TR({size:16,children:[D.PageNumber.CURRENT]})]})]});
 
-  const type=P(S(r,'Article Type').toUpperCase(),{b:true,sz:18,al:L,af:40});
-  const title=P(S(r,'Manuscript Title'),{b:true,sz:34,al:L,af:100});
+  const type=P(S(r,'Article Type').toUpperCase(),{b:true,sz:18,al:L,af:40,col:ORG});
+  const title=P(S(r,'Manuscript Title'),{b:true,sz:34,al:L,af:100,col:BLUE});
   const abs=[H('Abstract'),...paras(S(r,'Abstract')),P([TR({text:'Keywords: ',bold:true}),TR({text:S(r,'Keywords')})])];
   const items=await getItems(),placed=new Set();
   const body=[];let n=0;
@@ -159,14 +178,14 @@ async function build(blind){
       ...(doiUrl?[lab('DOI',doiUrl)]:[]),
       P('',{af:60}),
       lab('Copyright',`© ${yr} by the authors. Licensee Journal of Allbiosolution (ISSN 2605-3535). This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution-NonCommercial 4.0 (CC BY-NC 4.0) license (https://creativecommons.org/licenses/by-nc/4.0/).`)];
-    const main=[type,title,
-      P(list.flatMap((a,i)=>[TR({text:(i?', ':'')+a.n+(a.c?'*':''),bold:true}),...(a.k?[TR({text:String(a.k),superScript:true,bold:true})]:[])]),{al:L}),
+    const head=[type,title,
+      P(list.flatMap((a,i)=>[TR({text:(i?', ':'')+a.n+(a.c?'*':''),bold:true}),...(a.k.length?[TR({text:String(a.k),superScript:true,bold:true})]:[])]),{al:L}),
       ...affs.map((a,i)=>P([TR({text:String(i+1),superScript:true,size:18}),TR({text:a,size:18})],{al:L,af:20})),
-      P(`*Correspondence: ${S(r,'Corr. Author Name')}, ${S(r,'Corr. Author Address')}. E-mail: ${S(r,'Corr. Author Email')}${S(r,'Corr. Author ORCID')?'. ORCID: '+S(r,'Corr. Author ORCID'):''}`,{sz:18,al:L,bf:60}),
-      ...(S(r,'Running Title')?[P('Running title: '+S(r,'Running Title'),{sz:18,al:L})]:[]),...abs];
+      P(`*Correspondence: ${cl(S(r,'Corr. Author Name'))}, ${cl(S(r,'Corr. Author Address'))}. E-mail: ${S(r,'Corr. Author Email')}${S(r,'Corr. Author ORCID')?'. ORCID: '+S(r,'Corr. Author ORCID'):''}`,{sz:18,al:L,bf:60}),
+      ...(S(r,'Running Title')?[P('Running title: '+S(r,'Running Title'),{sz:18,al:L})]:[])];
     const cell=(w,ch)=>new D.TableCell({width:{size:w,type:D.WidthType.DXA},borders:NB,children:ch});
-    front=[new D.Table({columnWidths:[2300,7606],width:{size:9906,type:D.WidthType.DXA},borders:{...NB,insideHorizontal:nb,insideVertical:nb},
-      rows:[new D.TableRow({children:[cell(2300,side),cell(7606,main)]})]})];
+    front=[...head,P('',{af:80}),new D.Table({columnWidths:[2300,7606],width:{size:9906,type:D.WidthType.DXA},borders:{...NB,insideHorizontal:nb,insideVertical:nb},
+      rows:[new D.TableRow({children:[cell(2300,side),cell(7606,abs)]})]})];
   }
   const doc=new D.Document({sections:[
     {properties:{titlePage:!blind,page:{margin}},headers:{first:hFirst(),default:hRun()},footers:{first:ft(),default:ft()},children:front},
