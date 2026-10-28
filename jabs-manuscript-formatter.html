@@ -173,7 +173,7 @@ async function build(blind){
   }else{
     const{list,affs}=authors(r),ed=$('ed').value.trim();
     const side=[
-      new D.Paragraph({spacing:{before:140,after:120},children:[link?new D.ExternalHyperlink({link,children:[TR({text:'Check for updates',size:16,bold:true,color:'C55A11',underline:{}})]}):TR({text:'Check for updates',size:16,bold:true,color:'C55A11'})]}),
+      new D.Paragraph({spacing:{after:120},children:[link?new D.ExternalHyperlink({link,children:[TR({text:'Check for updates',size:16,bold:true,color:'C55A11',underline:{}})]}):TR({text:'Check for updates',size:16,bold:true,color:'C55A11'})]}),
       ...(ed?[lab('Editor',ed)]:[]),
       ...[['Received','d_re'],['Revised','d_rv'],['Accepted','d_ac'],['Published','d_pu']].filter(([,k])=>$(k).value).map(([l,k])=>lab(l,fmt($(k).value))),
       ...(doiUrl?[lab('DOI',doiUrl)]:[]),
@@ -184,9 +184,9 @@ async function build(blind){
       ...affs.map((a,i)=>P([TR({text:String(i+1),superScript:true,size:18}),TR({text:a,size:18})],{al:L,af:20})),
       P(`*Correspondence: ${cl(S(r,'Corr. Author Name'))}, ${cl(S(r,'Corr. Author Address'))}. E-mail: ${S(r,'Corr. Author Email')}${S(r,'Corr. Author ORCID')?'. ORCID: '+S(r,'Corr. Author ORCID'):''}`,{sz:18,al:L,bf:60}),
       ...(S(r,'Running Title')?[P('Running title: '+S(r,'Running Title'),{sz:18,al:L})]:[])];
-    const cell=(w,ch)=>new D.TableCell({width:{size:w,type:D.WidthType.DXA},borders:NB,verticalAlign:D.VerticalAlign.TOP,children:ch});
+    const cell=(w,ch,va)=>new D.TableCell({width:{size:w,type:D.WidthType.DXA},borders:NB,verticalAlign:va||D.VerticalAlign.TOP,children:ch});
     front=[band('Journal of Allbiosolution',44,'FFFFFF',BLUE),band(idLine,20,'FFFFFF',BLUE,1),P('',{af:100}),...head,P('',{af:80}),new D.Table({columnWidths:[2300,7606],width:{size:9906,type:D.WidthType.DXA},borders:{...NB,insideHorizontal:nb,insideVertical:nb},
-      rows:[new D.TableRow({children:[cell(2300,side),cell(7606,abs)]})]})];
+      rows:[new D.TableRow({children:[cell(2300,side,D.VerticalAlign.CENTER),cell(7606,abs)]})]})];
   }
   const doc=new D.Document({sections:[
     {properties:{titlePage:!blind,page:{margin:blind?margin:{...margin,top:500,header:200}}},headers:{first:hFirst(),default:hRun()},footers:{first:ft(),default:ft()},children:front},
