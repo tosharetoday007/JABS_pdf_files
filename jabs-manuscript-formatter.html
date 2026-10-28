@@ -143,9 +143,10 @@ async function build(blind){
   const r=rows[$('sel').value];if(!r){say('Load a file and select a submission.');return}
   const sid=S(r,'Submission ID'),aid=$('aid').value.trim(),id=aid||sid,doi=$('doi').value.trim(),yr=$('yr').value,vol=$('vol').value,iss=$('iss').value;
   const doiUrl=doi?'https://doi.org/'+doi:'',link=$('url').value.trim()||doiUrl;
-  const band=(t,sz,col,fill,acc)=>new D.Paragraph({alignment:C,border:acc?{bottom:{style:D.BorderStyle.SINGLE,size:18,color:'F2A900',space:1}}:undefined,shading:{type:D.ShadingType.CLEAR,fill,color:'auto'},spacing:{before:40,after:40},children:[TR({text:t,bold:true,size:sz,color:col})]});
+  const bd=(c,z)=>({style:D.BorderStyle.SINGLE,size:z,color:c,space:3});
+  const band=(t,sz,col,fill,acc)=>new D.Paragraph({alignment:C,spacing:{before:0,after:0},border:{top:bd(fill,12),bottom:acc?bd('F2A900',18):bd(fill,12)},shading:{type:D.ShadingType.CLEAR,fill,color:'auto'},children:[TR({text:t,bold:true,size:sz,color:col})]});
   const idLine=`(${yr}) Volume ${vol}, Issue ${iss}, Article ID: ${aid||'-'}`;
-  const hFirst=()=>new D.Header({children:[band('Journal of Allbiosolution',44,'FFFFFF',BLUE),band(idLine,20,'FFFFFF',BLUE,1)]});
+  const hFirst=()=>new D.Header({children:[new D.Paragraph({spacing:{after:0},children:[TR({text:'',size:2})]})]});
   const hRun=()=>new D.Header({children:[band(blind?`MANUSCRIPT ${sid}: CONFIDENTIAL, FOR PEER REVIEW (AUTHORS ANONYMISED)`:'JOURNAL OF ALLBIOSOLUTION '+idLine.toUpperCase(),18,blind?'333333':'FFFFFF',blind?'E7E6E6':BLUE,!blind)]});
   const ft=()=>new D.Footer({children:[new D.Paragraph({children:[TR({size:16,text:'Page '}),TR({size:16,children:[D.PageNumber.CURRENT]})]})]});
 
@@ -172,7 +173,7 @@ async function build(blind){
   }else{
     const{list,affs}=authors(r),ed=$('ed').value.trim();
     const side=[
-      new D.Paragraph({spacing:{after:120},children:[link?new D.ExternalHyperlink({link,children:[TR({text:'Check for updates',size:16,bold:true,color:'C55A11',underline:{}})]}):TR({text:'Check for updates',size:16,bold:true,color:'C55A11'})]}),
+      new D.Paragraph({spacing:{before:140,after:120},children:[link?new D.ExternalHyperlink({link,children:[TR({text:'Check for updates',size:16,bold:true,color:'C55A11',underline:{}})]}):TR({text:'Check for updates',size:16,bold:true,color:'C55A11'})]}),
       ...(ed?[lab('Editor',ed)]:[]),
       ...[['Received','d_re'],['Revised','d_rv'],['Accepted','d_ac'],['Published','d_pu']].filter(([,k])=>$(k).value).map(([l,k])=>lab(l,fmt($(k).value))),
       ...(doiUrl?[lab('DOI',doiUrl)]:[]),
@@ -183,12 +184,12 @@ async function build(blind){
       ...affs.map((a,i)=>P([TR({text:String(i+1),superScript:true,size:18}),TR({text:a,size:18})],{al:L,af:20})),
       P(`*Correspondence: ${cl(S(r,'Corr. Author Name'))}, ${cl(S(r,'Corr. Author Address'))}. E-mail: ${S(r,'Corr. Author Email')}${S(r,'Corr. Author ORCID')?'. ORCID: '+S(r,'Corr. Author ORCID'):''}`,{sz:18,al:L,bf:60}),
       ...(S(r,'Running Title')?[P('Running title: '+S(r,'Running Title'),{sz:18,al:L})]:[])];
-    const cell=(w,ch)=>new D.TableCell({width:{size:w,type:D.WidthType.DXA},borders:NB,children:ch});
-    front=[...head,P('',{af:80}),new D.Table({columnWidths:[2300,7606],width:{size:9906,type:D.WidthType.DXA},borders:{...NB,insideHorizontal:nb,insideVertical:nb},
+    const cell=(w,ch)=>new D.TableCell({width:{size:w,type:D.WidthType.DXA},borders:NB,verticalAlign:D.VerticalAlign.TOP,children:ch});
+    front=[band('Journal of Allbiosolution',44,'FFFFFF',BLUE),band(idLine,20,'FFFFFF',BLUE,1),P('',{af:100}),...head,P('',{af:80}),new D.Table({columnWidths:[2300,7606],width:{size:9906,type:D.WidthType.DXA},borders:{...NB,insideHorizontal:nb,insideVertical:nb},
       rows:[new D.TableRow({children:[cell(2300,side),cell(7606,abs)]})]})];
   }
   const doc=new D.Document({sections:[
-    {properties:{titlePage:!blind,page:{margin}},headers:{first:hFirst(),default:hRun()},footers:{first:ft(),default:ft()},children:front},
+    {properties:{titlePage:!blind,page:{margin:blind?margin:{...margin,top:500,header:200}}},headers:{first:hFirst(),default:hRun()},footers:{first:ft(),default:ft()},children:front},
     {properties:{type:D.SectionType.CONTINUOUS,column:{count:2,space:400},page:{margin}},headers:{default:hRun()},footers:{default:ft()},children:body},...(full.length?[{properties:{type:D.SectionType.CONTINUOUS,page:{margin}},headers:{default:hRun()},footers:{default:ft()},children:[H('Figures and Tables'),...full]}]:[])]});
   const a=document.createElement('a');a.href=URL.createObjectURL(await D.Packer.toBlob(doc));
   a.download=`${id}_${blind?'Blinded':'Editor'}.docx`;a.click();
