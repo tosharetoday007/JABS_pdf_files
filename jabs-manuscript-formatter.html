@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JABS Manuscript Formatter</title>
+<title>Allbiosolution Manuscript Formatter</title>
 <style>
 :root{color-scheme:light dark;--bg:#fff;--tx:#1b1f24;--mu:#5b6570;--bd:#c9d1d9;--ac:#0b3d91}
 @media(prefers-color-scheme:dark){:root{--bg:#161b22;--tx:#e6edf3;--mu:#9aa5b1;--bd:#3a424d;--ac:#6ea3f5}}
@@ -27,7 +27,7 @@ button.s{background:transparent;color:var(--ac);border:1px solid var(--ac)}
 <h2>2. Editor fields</h2>
 <div class="g">
 <div><label>Article ID</label><input id="aid" placeholder="O0801034"></div>
-<div><label>DOI</label><input id="doi" placeholder="10.64307/JABS.O0801034"></div>
+<div><label>DOI</label><input id="doi" placeholder="auto: 10.64307/allbiosolution + Article ID"></div>
 <div><label>Editor</label><input id="ed"></div>
 <div><label>Volume</label><input id="vol" value="8"></div>
 <div><label>Issue</label><input id="iss" value="1"></div>
@@ -90,6 +90,9 @@ function pick(){
   document.querySelectorAll('.af').forEach(s=>s.innerHTML=optsHtml());
 }
 $('sel').onchange=pick;
+const DP='10.64307/allbiosolution';let doiAuto=true;
+$('doi').oninput=()=>{doiAuto=!$('doi').value.trim()||$('doi').value.startsWith(DP)&&$('doi').value==DP+$('aid').value.trim()};
+$('aid').oninput=()=>{const a=$('aid').value.trim();if(doiAuto||!$('doi').value.trim()){$('doi').value=a?DP+a:'';doiAuto=true}};
 
 function addItem(k){
   const d=document.createElement('div');d.className='it';d.dataset.k=k;
