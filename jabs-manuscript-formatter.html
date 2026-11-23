@@ -266,7 +266,7 @@ async function build(blind){
   }
   const doc=new D.Document({sections:[
     {properties:{titlePage:!blind,page:{margin:blind?margin:{...margin,top:500,header:200}}},headers:{first:hFirst(),default:hRun()},footers:{first:ft(),default:ft()},children:front},
-    {properties:{type:D.SectionType.CONTINUOUS,column:{count:2,space:400},page:{margin}},headers:{default:hRun()},footers:{default:ft()},children:nodes.length?nodes:[P('')]},...(full.length?[{properties:{type:D.SectionType.CONTINUOUS,page:{margin}},headers:{default:hRun()},footers:{default:ft()},children:[H('Figures and Tables'),...full]}]:[])]});
+    {properties:{type:D.SectionType.CONTINUOUS,column:{count:2,space:200},page:{margin}},headers:{default:hRun()},footers:{default:ft()},children:nodes.length?nodes:[P('')]},...(full.length?[{properties:{type:D.SectionType.CONTINUOUS,page:{margin}},headers:{default:hRun()},footers:{default:ft()},children:[H('Figures and Tables'),...full]}]:[])]});
   const a=document.createElement('a');a.href=URL.createObjectURL(await D.Packer.toBlob(doc));
   a.download=`${id}_${blind?'Blinded':'Editor'}.docx`;a.click();
   say(`Created ${a.download}: ${secs.filter(s=>s.h).length} sections, ${rf.length} references, ${items.length} extra figure/table item(s).`+(w?'\nWarning: the Full Text cell contained the article twice; the duplicate copy was removed.':''));
