@@ -218,7 +218,7 @@ async function build(blind){
   const sid=S(r,'Submission ID'),aid=$('aid').value.trim(),id=aid||sid,doi=$('doi').value.trim(),yr=$('yr').value,vol=$('vol').value,iss=$('iss').value;
   const doiUrl=doi?'https://doi.org/'+doi:'',link=$('url').value.trim()||doiUrl;
   const bd=(c,z)=>({style:D.BorderStyle.SINGLE,size:z,color:c,space:3});
-  const band=(t,sz,col,fill,acc)=>new D.Paragraph({alignment:C,spacing:{before:0,after:0},border:{top:bd(fill,12),bottom:acc?bd('F2A900',18):bd(fill,12)},shading:{type:D.ShadingType.CLEAR,fill,color:'auto'},children:[TR({text:t,bold:true,size:sz,color:col})]});
+  const band=(t,sz,col,fill,acc,first)=>new D.Paragraph({alignment:C,spacing:{before:0,after:0},border:{top:{...bd(fill,12),space:first?3:0},bottom:acc?bd('F2A900',18):{...bd(fill,12),space:0}},shading:{type:D.ShadingType.CLEAR,fill,color:'auto'},children:[TR({text:t,bold:true,size:sz,color:col})]});
   const idLine=`(${yr}) Volume ${vol}, Issue ${iss}, Article ID: ${aid||'-'}`;
   const hFirst=()=>new D.Header({children:[new D.Paragraph({spacing:{after:0},children:[TR({text:'',size:2})]})]});
   const hRun=()=>new D.Header({children:[band(blind?`MANUSCRIPT ${sid}: CONFIDENTIAL, FOR PEER REVIEW (AUTHORS ANONYMISED)`:'JOURNAL OF ALLBIOSOLUTION '+idLine.toUpperCase(),18,blind?'333333':'FFFFFF',blind?'E7E6E6':BLUE,!blind)]});
@@ -226,7 +226,7 @@ async function build(blind){
 
   const type=P(S(r,'Article Type').toUpperCase(),{b:true,sz:18,al:L,af:20,bf:blind?0:100,col:ORG});
   const title=P(S(r,'Title','Manuscript Title'),{b:true,sz:34,al:L,af:100,col:BLUE});
-  const abs=[H('Abstract',1),...paras(plain(S(r,'Abstract').replace(/<\/p>|<br\s*\/?>/gi,'\n')).replace(/\n/g,'\n')),P([TR({text:'Keywords: ',bold:true}),TR({text:S(r,'Keywords')})])];
+  const abs=[H('Abstract',1),...paras(plain(S(r,'Abstract').replace(/<\/p>|<br\s*\/?>/gi,'\n')).replace(/\n/g,'\n')),P([TR({text:'Keywords: ',bold:true}),TR({text:S(r,'Keywords')})],{af:0})];
   const items=await getItems(),placed=new Set();
   const {secs,w,hasDecl}=body(r,blind),nodes=[];
   secs.forEach(s=>{
@@ -242,7 +242,7 @@ async function build(blind){
   const rf=refs(r);
   if(rf.length)nodes.push(H('References'),...rf.map(x=>P(x,{sz:16,al:L,af:30})));
 
-  const margin={top:1150,bottom:1100,left:1000,right:1000,header:500};
+  const margin={top:980,bottom:1100,left:1000,right:1000,header:430};
   let front;
   if(blind){
     front=[type,title,...(S(r,'Running Title')?[P('Running title: '+S(r,'Running Title'),{sz:18,al:L})]:[]),...abs];
@@ -261,9 +261,9 @@ async function build(blind){
       ...affs.map((a,i)=>P([TR({text:String(i+1),superScript:true,size:18}),TR({text:a,size:18})],{al:L,af:20})),
       P(`*Correspondence: ${ca.n}${addr?', '+addr:''}. E-mail: ${email}${orcid?'. ORCID: '+orcid:''}`,{sz:18,al:L,bf:60}),
       ...(S(r,'Running Title')?[P('Running title: '+S(r,'Running Title'),{sz:18,al:L})]:[])];
-    const cell=(w,ch,va)=>new D.TableCell({width:{size:w,type:D.WidthType.DXA},borders:NB,verticalAlign:va||D.VerticalAlign.TOP,children:ch});
-    front=[band('Journal of Allbiosolution',44,'FFFFFF',BLUE),band(idLine,20,'FFFFFF',BLUE,1),...head,new D.Table({columnWidths:[2300,7606],width:{size:9906,type:D.WidthType.DXA},borders:{...NB,insideHorizontal:nb,insideVertical:nb},
-      rows:[new D.TableRow({children:[cell(2300,side,D.VerticalAlign.CENTER),cell(7606,abs)]})]})];
+    const cell=(w,ch,va,mg)=>new D.TableCell({margins:mg,width:{size:w,type:D.WidthType.DXA},borders:NB,verticalAlign:va||D.VerticalAlign.TOP,children:ch});
+    front=[band('Journal of Allbiosolution',52,'FFFFFF',BLUE,0,1),band(idLine,20,'FFFFFF',BLUE,1),...head,new D.Table({columnWidths:[2300,7606],width:{size:9906,type:D.WidthType.DXA},borders:{...NB,insideHorizontal:nb,insideVertical:nb},
+      rows:[new D.TableRow({children:[cell(2300,side,D.VerticalAlign.CENTER),cell(7606,abs,0,{left:260})]})]})];
   }
   const doc=new D.Document({sections:[
     {properties:{titlePage:!blind,page:{margin:blind?margin:{...margin,top:500,header:200}}},headers:{first:hFirst(),default:hRun()},footers:{first:ft(),default:ft()},children:front},
